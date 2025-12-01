@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rentify - For Landlords</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Permanent+Marker&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="auth.js"></script>
+  <!-- Cropper.js for avatar adjustment -->
+  <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+  <script>
+    const token = localStorage.getItem("landlordToken");
+    if (!token) {
+      window.location.href = "login.html";
+    }
+  </script>
+  <style>
+    /* Avatar Cropper Modal */
+    .modal .avatar-cropper {
+      max-width: 760px;
+    }
+    .avatar-cropper-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 65vh;
+    }
+    .avatar-cropper-canvas {
+      width: 100%;
+      height: 420px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--bg-secondary);
+    }
+    #avatarCropImage {
+      max-width: 100%;
+      display: block;
+    }
+    .avatar-cropper-hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    /* Sidebar Navigation */
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 250px;
+      height: 100vh;
+      background: var(--bg-primary);
+      border-right: 1px solid var(--border-color);
+      padding: 20px 0;
+      overflow-y: auto;
+      z-index: 1000;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease, background-color 200ms ease;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .sidebar.open {
+      transform: translateX(0);
+    }
+
+    .sidebar-menu {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .sidebar-menu-item {
+      margin: 0;
+    }
+
+    .sidebar-menu-item button {
+      width: 100%;
+      padding: 14px 20px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      font-weight: 500;
+      color: var(--text-primary);
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 15px;
+    }
+
+    .sidebar-menu-item button:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
+
+    body.dark-mode .sidebar-menu-item button:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .sidebar-menu-item button.active {
+      background: rgba(95, 111, 230, 0.1);
+      border-left: 3px solid #5f6fe6;
+      font-weight: 600;
+    }
+
+    .sidebar-menu-item button.logout {
+      color: #b80000;
+      margin-top: 10px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 14px;
+    }
+
+    .sidebar-menu-item button.logout:hover {
+      background: rgba(184, 0, 0, 0.1);
+    }
+
+    /* Main content with sidebar */
+    .main-content {
+      margin-left: 0;
+      transition: margin-left 0.3s ease;
+    }
+
+    /* When sidebar is open on desktop, add margin */
+    @media (min-width: 769px) {
+      .sidebar.open ~ .main-content {
+        margin-left: 250px;
+      }
+    }
+
+    /* Form styling */
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    form input, form select, form textarea {
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--input-bg);
+      color: var(--text-primary);
+      font-size: 14px;
+      transition: border-color 0.2s ease;
+    }
+
+    form input:focus, form select:focus, form textarea:focus {
+      outline: none;
+      border-color: #5f6fe6;
+    }
+
+    form button[type="submit"] {
+      padding: 12px;
+      background: #5f6fe6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s ease;
+    }
+
+    form button[type="submit"]:hover {
+      background: #4a5bd4;
+    }
+
+    /* Notification items */
+    .notification-item {
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      margin-bottom: 10px;
+      background: var(--bg-primary);
+    }
+
+    .notification-item.unread {
+      background: rgba(95, 111, 230, 0.1);
+      border-left: 3px solid #5f6fe6;
+    }
+
+    .notification-item h4 {
+      margin: 0 0 6px 0;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .notification-item p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .notification-item .time {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+    }
+
+    /* Settings section */
+    .settings-group {
+      margin-bottom: 24px;
+    }
+
+    .settings-group h3 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: var(--text-primary);
+    }
+
+    .settings-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      background: var(--bg-primary);
+    }
+
+    .settings-item label {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 50px;
+      height: 24px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: #5f6fe6;
+    }
+
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(26px);
+    }
+
+    /* Help section */
+    .help-item {
+      padding: 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      margin-bottom: 12px;
+      background: var(--bg-primary);
+    }
+
+    .help-item h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      color: var(--text-primary);
+    }
+
+    .help-item p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* Financial Summary Cards */
+    .financial-summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .financial-summary-card {
+      background: linear-gradient(135deg, #cd0202 0%, #8b0000 50%, #340404 100%);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(205, 2, 2, 0.3);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .financial-summary-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 20px rgba(205, 2, 2, 0.4);
+    }
+
+    body.dark-mode .financial-summary-card {
+      background: linear-gradient(135deg, #8b0000 0%, #5a0000 50%, #2a0000 100%);
+      box-shadow: 0 4px 12px rgba(205, 2, 2, 0.5);
+    }
+
+    .financial-summary-card .card-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .financial-summary-card .card-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+
+    /* Menu toggle button - hidden when sidebar is open */
+    .menu-toggle {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 1001;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      padding: 12px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 22px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+      color: var(--text-primary);
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .menu-toggle.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .menu-toggle:hover {
+      background: var(--bg-secondary);
+      transform: scale(1.05);
+    }
+
+    body.dark-mode .menu-toggle {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Close arrow button at the edge of sidebar */
+    .sidebar-close {
+      position: absolute;
+      top: 50%;
+      right: -40px;
+      transform: translateY(-50%);
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-left: none;
+      border-radius: 0 8px 8px 0;
+      cursor: pointer;
+      color: var(--text-primary);
+      padding: 20px 8px;
+      font-size: 20px;
+      transition: all 0.2s ease;
+      z-index: 1001;
+      box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sidebar-close:hover {
+      background: var(--bg-secondary);
+      right: -42px;
+    }
+
+    body.dark-mode .sidebar-close {
+      box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        margin-left: 0 !important;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <!-- Menu Toggle Button -->
+  <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()" title="Open Menu">☰</button>
+
+  <!-- Dark mode toggle is available in Settings only -->
+
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar" id="sidebar">
+    <button class="sidebar-close" onclick="closeSidebar()" title="Close Menu">◀</button>
+    <ul class="sidebar-menu">
+      <li class="sidebar-menu-item">
+        <button onclick="showSection('dashboard')" class="active">📊 Dashboard</button>
+      </li>
+      <li class="sidebar-menu-item">
+        <button onclick="showSection('profile')">👤 Profile</button>
+      </li>
+      <li class="sidebar-menu-item">
+        <button onclick="showSection('properties')">🏢 Properties</button>
+      </li>
+      <li class="sidebar-menu-item">
+        <button onclick="showSection('addTenant')">➕ Add Tenant</button>
+      </li>
+      <li class="sidebar-menu-item">
+        <button onclick="showSection('tenants')">🏠 Tenant Management</button>
+      </li>
+      <li class="sidebar-menu-item">
+        <button onclick="showSection('finance')">📊 Finance</button>
+      </li>
+      <li class="sidebar-menu-item">
+        <button onclick="showSection('notifications')">🔔 Notifications</button>
+      </li>
+      <li class="sidebar-menu-item">
+        <button onclick="showSection('settings')">⚙️ Settings</button>
+      </li>
+      <li class="sidebar-menu-item">
+        <button onclick="showSection('help')">❓ Help</button>
+      </li>
+      <li class="sidebar-menu-item">
+        <button onclick="logout()" class="logout">🚪 Logout</button>
+      </li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <!-- Rentify branding -->
+    <h1 class="rentify-title">Rentify</h1>
+
+    <!-- APP CARD -->
+    <div class="app-card">
+      <header>
+        <h2>Landlord Edition</h2>
+      </header>
+
+    <main>
+      <section id="dashboard" class="active">
+        <h2>Dashboard</h2>
+        <div class="financial-summary-cards">
+          <div class="financial-summary-card" style="cursor:pointer;" onclick="showSection('tenants')">
+            <div class="card-label">Number of Tenants</div>
+            <div class="card-value" id="totalTenants">0</div>
+          </div>
+          <div class="financial-summary-card" style="cursor:pointer;" id="totalPropertiesCard" onclick="showSection('properties')">
+            <div class="card-label">Total Properties</div>
+            <div class="card-value" id="totalProperties">0</div>
+          </div>
+          <div class="financial-summary-card" style="cursor:pointer;" onclick="showSection('finance')">
+            <div class="card-label">Total Income</div>
+            <div class="card-value" id="dashboardTotalIncome">$0.00</div>
+          </div>
+        </div>
+
+        <!-- Extended Metrics (visible when scrolling down) -->
+        <div class="financial-summary-cards" style="margin-top:20px;">
+          <div class="financial-summary-card" style="cursor:pointer;" onclick="showSection('properties')">
+            <div class="card-label">Total Units</div>
+            <div class="card-value" id="totalUnits">0</div>
+          </div>
+          <div class="financial-summary-card" style="cursor:pointer;" onclick="showSection('properties')">
+            <div class="card-label">Occupied Units</div>
+            <div class="card-value" id="occupiedUnits">0</div>
+          </div>
+          <div class="financial-summary-card" style="cursor:pointer;" onclick="showSection('properties')">
+            <div class="card-label">Vacant Units</div>
+            <div class="card-value" id="vacantUnits">0</div>
+          </div>
+          <!-- Removed: Total Tenants (duplicate), Paid Rent and Unpaid/Past Due Rent cards -->
+        </div>
+
+        <div class="dashboard-grid" style="margin-top: 24px;">
+          <div class="dashboard-panel">
+            <h3>Upcoming Due Dates</h3>
+            <ul id="upcomingDueList" class="upcoming-list">
+              <li>No upcoming due dates.</li>
+            </ul>
+          </div>
+
+          <div class="dashboard-panel">
+            <h3>Monthly Rent Collection</h3>
+            <div class="chart-wrap"><canvas id="monthlyChart"></canvas></div>
+          </div>
+
+          <div class="dashboard-panel">
+            <h3>Occupancy Rate</h3>
+            <div class="chart-wrap"><canvas id="occupancyChart"></canvas></div>
+          </div>
+
+          <div class="dashboard-panel">
+            <h3>Payment Status Trend</h3>
+            <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="profile">
+        <h2>Profile</h2>
+        <div class="profile-picture-wrapper" style="margin:24px 0; display:flex; flex-direction:column; align-items:center; gap:12px;">
+          <img id="profileImage" src="profile.png" alt="Profile picture" style="width:120px; height:120px; border-radius:50%; object-fit:cover; border:3px solid var(--border-color); background:var(--bg-secondary); box-shadow:0 2px 8px rgba(0,0,0,0.1);" />
+          <input type="file" id="avatarFileInput" accept="image/*" style="display:none;" />
+          <button type="button" class="actionBtn" onclick="openAvatarPicker()" style="padding:6px 14px; font-size:13px; background:#5f6fe6; color:#fff; border:none; border-radius:6px; cursor:pointer;">Change Avatar</button>
+        </div>
+        <div class="cards" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; max-width:600px; margin:0 auto;">
+          <div class="card" style="padding:12px;">
+            <h3 style="font-size:14px; margin:0 0 8px 0;">Personal Information</h3>
+            <p style="font-size:12px; margin:4px 0;"><strong>Name:</strong> <span id="profileName">Loading...</span></p>
+            <p style="font-size:12px; margin:4px 0;"><strong>Email:</strong> <span id="profileEmail">Loading...</span></p>
+          </div>
+          <div class="card" style="padding:12px;">
+            <h3 style="font-size:14px; margin:0 0 8px 0;">Account Statistics</h3>
+            <p style="font-size:12px; margin:4px 0;"><strong>Total Tenants:</strong> <span id="profileTotalTenants">0</span></p>
+            <p style="font-size:12px; margin:4px 0;"><strong>Account Created:</strong> <span id="profileCreatedDate">-</span></p>
+          </div>
+        </div>
+        <!-- Removed editable name/update form per user request -->
+        <div style="margin-top:24px;">
+          <button type="button" class="actionBtn" onclick="openOwnershipModal()" style="background:#5f6fe6; color:#fff; padding:10px 16px; border:none; border-radius:6px; cursor:pointer;">Update Ownership</button>
+        </div>
+      </section>
+
+      <section id="addTenant">
+        <h2>Add Tenant</h2>
+        <form id="tenantForm">
+          <input type="text" id="tenantName" placeholder="Tenant Name" required>
+          <select id="tenantProperty">
+            <option value="">Select Property (optional)</option>
+          </select>
+          <select id="tenantUnit">
+            <option value="">Select Unit (optional)</option>
+          </select>
+          <input type="text" id="tenantContact" placeholder="Contact (phone or email)">
+          <input type="number" id="tenantRent" placeholder="Rent Amount" required>
+          <input type="date" id="tenantDueDate" placeholder="Due Date" required>
+          <button type="submit">Add Tenant</button>
+        </form>
+      </section>
+
+      <section id="tenants">
+        <h2>Tenant Management</h2>
+        <div class="table-scroll">
+          <table id="tenantTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Property</th>
+                <th>Unit</th>
+                <th>Rent</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="properties">
+        <h2>Properties</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+          <h3>Your Properties</h3>
+          <div style="margin-left:auto;"><button onclick="openAddPropertyModal()" style="padding:8px 12px; background:#5f6fe6; color:#fff; border:none; border-radius:6px; cursor:pointer;">+ Add Property</button></div>
+        </div>
+
+        <div class="table-scroll" style="margin-top:12px;">
+          <table id="propertyTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Type</th>
+                <th>Units</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+      
+      <section id="units">
+        <div style="display:flex; align-items:center; gap:12px; justify-content:space-between;">
+          <div style="display:flex; gap:12px; align-items:center;">
+            <button onclick="showSection('properties')" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border-color); background:transparent; cursor:pointer;">← Back</button>
+            <h2 id="unitsTitle">Units</h2>
+          </div>
+          <div>
+            <button onclick="openAddUnitModal()" style="padding:8px 12px; background:#5f6fe6; color:#fff; border:none; border-radius:6px; cursor:pointer;">+ Add Unit</button>
+          </div>
+        </div>
+
+        <div class="table-scroll" style="margin-top:12px;">
+          <table id="unitTable">
+            <thead>
+              <tr>
+                <th>Unit</th>
+                <th>Rooms</th>
+                <th>Rent</th>
+                <th>Tenant</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="finance">
+        <h2>Finance & Payments</h2>
+        
+        <!-- Financial Summary Cards -->
+        <div class="financial-summary-cards">
+          <div class="financial-summary-card">
+            <div class="card-label">Total Income</div>
+            <div class="card-value" id="totalIncome">$0.00</div>
+          </div>
+          <div class="financial-summary-card">
+            <div class="card-label">Unpaid</div>
+            <div class="card-value" id="unpaidAmount">$0.00</div>
+          </div>
+        </div>
+        
+        <div style="margin-top: 30px;">
+          <h3>Payment Records</h3>
+          <div class="table-scroll">
+            <table id="paymentTable">
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Property</th>
+                  <th>Unit</th>
+                  <th>Rent</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="notifications">
+        <h2>Notifications</h2>
+        <div id="notificationsList">
+          <p>No notifications at this time.</p>
+        </div>
+        <div style="margin-top: 20px;">
+          <h3>Notification Settings</h3>
+          <div class="settings-item">
+            <label>Email Notifications</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="emailNotifications" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-item">
+            <label>Payment Reminders</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="paymentReminders" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section id="settings">
+        <h2>Settings</h2>
+        <div class="settings-group">
+          <h3>Appearance</h3>
+          <div class="settings-item">
+            <label>Dark Mode</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="darkModeSetting">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h3>Notifications</h3>
+          <div class="settings-item">
+            <label>Email Notifications</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="settingsEmailNotifications" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-item">
+            <label>Payment Reminders</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="settingsPaymentReminders" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-item">
+            <label>Past Due Alerts</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="pastDueAlerts" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-group">
+          <h3>Data Management</h3>
+          <div class="settings-item">
+            <label>Export Data</label>
+            <button onclick="exportData()" style="padding: 8px 16px; background: #5f6fe6; color: white; border: none; border-radius: 6px; cursor: pointer;">Export</button>
+          </div>
+          <div class="settings-item">
+            <label>Clear All Data</label>
+            <button onclick="confirmClearData()" style="padding: 8px 16px; background: #b80000; color: white; border: none; border-radius: 6px; cursor: pointer;">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="help">
+        <h2>Help & Support</h2>
+        <div class="help-item">
+          <h3>How to Add a Tenant?</h3>
+          <p>Go to the Tenants section, fill in the tenant's name, room/unit number, rent amount, and due date. Click "Add Tenant" to save.</p>
+        </div>
+        <div class="help-item">
+          <h3>How to Track Payments?</h3>
+          <p>Navigate to the Payments section to see all tenants and their payment status. Click "Mark Paid" when a tenant has paid their rent.</p>
+        </div>
+        <div class="help-item">
+        </div>
+        <div class="help-item">
+          <h3>How to Manage Notifications?</h3>
+          <p>Go to the Notifications section to view all notifications and manage your notification preferences.</p>
+        </div>
+        <div class="help-item">
+          <h3>Contact Support</h3>
+          <p>If you need additional help, please contact our support team at support@rentify.com or call 1-800-RENTIFY.</p>
+        </div>
+        <div class="help-item">
+          <h3>FAQ</h3>
+          <p><strong>Q: Can I edit tenant information?</strong><br>
+          A: Currently, you can delete and re-add tenants. Edit functionality will be available in a future update.</p>
+          <p><strong>Q: How do I change my password?</strong><br>
+          A: Please use the Firebase authentication system to reset your password through the login page.</p>
+          <p><strong>Q: Is my data secure?</strong><br>
+          A: Yes, all data is stored securely in Firebase and is only accessible by you.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- DELETE CONFIRMATION MODAL -->
+  <div id="deleteModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+      <h3 id="deleteModalTitle">Confirm Delete</h3>
+      <p id="deleteModalMessage">Are you sure you want to delete this tenant? This action cannot be undone.</p>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="cancelDelete()">Cancel</button>
+        <button class="modal-btn confirm" onclick="confirmDelete()">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OWNERSHIP TRANSFER MODAL -->
+  <div id="ownershipModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ownershipModalTitle">
+      <h3 id="ownershipModalTitle">Transfer Ownership</h3>
+      <p style="font-size:13px; line-height:1.5;">Update account ownership by changing the primary email, display name and password for this landlord account. Enter your current password to authorize changes.</p>
+      <form id="ownershipForm">
+        <input type="email" id="ownershipNewEmail" placeholder="New email" required>
+        <input type="text" id="ownershipNewName" placeholder="New full name" required>
+        <input type="password" id="ownershipCurrentPassword" placeholder="Current password" required>
+        <input type="password" id="ownershipNewPassword" placeholder="New password" required>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+          <button type="button" class="modal-btn cancel" onclick="closeOwnershipModal()">Cancel</button>
+          <button type="submit" class="modal-btn confirm">Update Ownership</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ADD PROPERTY MODAL -->
+  <div id="addPropertyModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addPropertyTitle">
+      <h3 id="addPropertyTitle">Add Property</h3>
+      <form id="addPropertyForm">
+        <input type="text" id="propertyName" placeholder="Property Name (e.g., Sunrise Apartments)" required>
+        <input type="text" id="propertyAddress" placeholder="Property Address" required>
+        <select id="propertyType">
+          <option value="Apartment">Apartment</option>
+          <option value="House">House</option>
+          <option value="Condo">Condo</option>
+        </select>
+        <input type="number" id="propertyUnits" placeholder="Number of Units (optional)" min="0">
+        <input type="number" id="propertyDefaultRent" placeholder="Default Rent (optional)" min="0" step="0.01">
+        <textarea id="propertyDescription" placeholder="Property Description (optional)"></textarea>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+          <button type="button" class="modal-btn cancel" onclick="closeAddPropertyModal()">Cancel</button>
+          <button type="submit" class="modal-btn confirm">Create Property</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+    <!-- ADD / EDIT UNIT MODAL -->
+    <div id="addUnitModal" class="modal-overlay" aria-hidden="true">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addUnitTitle">
+        <h3 id="addUnitTitle">Add / Edit Unit</h3>
+        <form id="addUnitForm">
+          <input type="text" id="unitName" placeholder="Unit Name / Number (required)" required>
+          <input type="number" id="unitRent" placeholder="Rent Amount (required)" required>
+          <select id="unitTenant">
+            <option value="">-- Assign Tenant (optional) --</option>
+          </select>
+          <select id="unitStatus">
+            <option value="Vacant">Vacant</option>
+            <option value="Occupied">Occupied</option>
+          </select>
+          <input type="text" id="unitRooms" placeholder="Rooms / Details (optional)">
+          <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+            <button type="button" class="modal-btn cancel" onclick="closeUnitModal()">Cancel</button>
+            <button type="submit" class="modal-btn confirm">Save Unit</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  <!-- AVATAR CROP MODAL -->
+  <div id="avatarCropModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal avatar-cropper" role="dialog" aria-modal="true" aria-labelledby="avatarCropTitle">
+      <h3 id="avatarCropTitle">Adjust Avatar</h3>
+      <div class="avatar-cropper-body">
+        <div class="avatar-cropper-canvas">
+          <img id="avatarCropImage" alt="Selected avatar for cropping" />
+        </div>
+        <div class="avatar-cropper-hint">Use mouse or touch to move/zoom. Square crop.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn cancel" onclick="closeAvatarCropModal()">Cancel</button>
+        <button class="modal-btn confirm" onclick="saveAvatarCrop()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart.js for charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="script.js"></script>
+  <script>
+    // Logout function
+    function logout() {
+      firebase.auth().signOut().then(() => {
+        localStorage.removeItem("landlordToken");
+        window.location.href = "login.html";
+      }).catch(err => console.error(err));
+    }
+
+    // Metrics color update
+    function updateColors() {
+      const totalTenants = document.getElementById('totalTenants');
+      const paidTenants = document.getElementById('paidTenants');
+      const pastDueCount = document.getElementById('pastDueCount');
+
+      const isDark = document.body.classList.contains('dark-mode');
+
+      // Always use white for the big metric numbers to match card design
+      if (totalTenants) totalTenants.style.color = "#fff";
+      // Keep existing behavior for others
+      if (paidTenants) paidTenants.style.color = isDark ? "#fff" : (paidTenants.textContent == "0" ? "#000" : "green");
+      if (pastDueCount) pastDueCount.style.color = isDark ? "#fff" : (pastDueCount.textContent == "0" ? "#000" : "orange");
+    }
+
+    document.addEventListener('DOMContentLoaded', updateColors);
+
+    // Keep metrics colors in sync when toggling dark mode from Settings
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    if(darkModeToggle){
+      darkModeToggle.addEventListener('click', () => setTimeout(updateColors, 100));
+    }
+    const darkModeSettingToggle = document.getElementById('darkModeSetting');
+    if (darkModeSettingToggle) {
+      darkModeSettingToggle.addEventListener('change', () => setTimeout(updateColors, 100));
+    }
+  </script>
+</body>
+</html>

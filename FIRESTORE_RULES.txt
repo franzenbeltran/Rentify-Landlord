@@ -1,0 +1,42 @@
+// ============================================
+// FIRESTORE SECURITY RULES
+// ============================================
+// Copy and paste these rules into Firebase Console:
+// Firestore Database → Rules tab → Replace all → Publish
+// ============================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Landlords collection - users can only read/write their own data
+    match /landlords/{landlordId} {
+      allow read, write: if request.auth != null && request.auth.uid == landlordId;
+    }
+    
+    // Tenants collection - users can only read/write tenants for their landlordId
+    match /tenants/{tenantId} {
+      // Allow read if user is authenticated and the tenant belongs to them
+      allow read: if request.auth != null && 
+        (resource == null || resource.data.landlordId == request.auth.uid);
+      
+      // Allow create if user is authenticated and sets their own landlordId
+      allow create: if request.auth != null && 
+        request.resource.data.landlordId == request.auth.uid;
+      
+      // Allow update/delete if user is authenticated and tenant belongs to them
+      allow update, delete: if request.auth != null && 
+        resource.data.landlordId == request.auth.uid;
+    }
+  }
+}
+
+// ============================================
+// IMPORTANT NOTES:
+// ============================================
+// 1. After pasting these rules, click "Publish"
+// 2. If you get an index error, Firebase will prompt you to create the index - click the link
+// 3. For development, you can temporarily use test mode (less secure):
+//    allow read, write: if request.time < timestamp.date(2025, 12, 31);
+// ============================================
+
